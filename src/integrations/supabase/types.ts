@@ -14,7 +14,179 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      holdings: {
+        Row: {
+          average_cost: number
+          created_at: string
+          current_price: number | null
+          id: string
+          portfolio_id: string
+          quantity: number
+          symbol: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          average_cost: number
+          created_at?: string
+          current_price?: number | null
+          id?: string
+          portfolio_id: string
+          quantity: number
+          symbol: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          average_cost?: number
+          created_at?: string
+          current_price?: number | null
+          id?: string
+          portfolio_id?: string
+          quantity?: number
+          symbol?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holdings_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolios: {
+        Row: {
+          cash_balance: number | null
+          created_at: string
+          id: string
+          name: string
+          total_value: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cash_balance?: number | null
+          created_at?: string
+          id?: string
+          name?: string
+          total_value?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cash_balance?: number | null
+          created_at?: string
+          id?: string
+          name?: string
+          total_value?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          preferred_sectors: string[] | null
+          risk_tolerance: string | null
+          trading_experience: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          preferred_sectors?: string[] | null
+          risk_tolerance?: string | null
+          trading_experience?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          preferred_sectors?: string[] | null
+          risk_tolerance?: string | null
+          trading_experience?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      trading_signals: {
+        Row: {
+          ai_reasoning: string | null
+          confidence_score: number | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          price_target: number | null
+          signal_type: string
+          stop_loss: number | null
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          ai_reasoning?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          price_target?: number | null
+          signal_type: string
+          stop_loss?: number | null
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          ai_reasoning?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          price_target?: number | null
+          signal_type?: string
+          stop_loss?: number | null
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      watchlist: {
+        Row: {
+          added_at: string
+          id: string
+          notes: string | null
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          notes?: string | null
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          notes?: string | null
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
