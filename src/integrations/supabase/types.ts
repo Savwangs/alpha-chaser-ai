@@ -58,6 +58,39 @@ export type Database = {
           },
         ]
       }
+      market_data: {
+        Row: {
+          change: number | null
+          change_percent: number | null
+          id: string
+          market_cap: number | null
+          price: number
+          symbol: string
+          updated_at: string
+          volume: number | null
+        }
+        Insert: {
+          change?: number | null
+          change_percent?: number | null
+          id?: string
+          market_cap?: number | null
+          price: number
+          symbol: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Update: {
+          change?: number | null
+          change_percent?: number | null
+          id?: string
+          market_cap?: number | null
+          price?: number
+          symbol?: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Relationships: []
+      }
       portfolios: {
         Row: {
           cash_balance: number | null
