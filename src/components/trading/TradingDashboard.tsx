@@ -9,19 +9,48 @@ import { AIInsights } from "./AIInsights";
 import { TradingSignals } from "./TradingSignals";
 import { WatchList } from "./WatchList";
 import { MarketOverview } from "./MarketOverview";
-import { Brain, TrendingUp, DollarSign, BarChart3, AlertTriangle } from "lucide-react";
+import { Brain, TrendingUp, DollarSign, BarChart3, AlertTriangle, LogOut, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { usePortfolio } from "@/hooks/usePortfolio";
+import { useToast } from "@/hooks/use-toast";
 
 export const TradingDashboard = () => {
   const [selectedStock, setSelectedStock] = useState("AAPL");
-  const [portfolioValue, setPortfolioValue] = useState(125840);
-  const [dailyChange, setDailyChange] = useState(2456);
+  const { user, signOut } = useAuth();
+  const { portfolio, loading } = usePortfolio();
+  const { toast } = useToast();
 
+  const handleSignOut = async () => {
+    await signOut();
+    toast({
+      title: "Signed out",
+      description: "You've been signed out successfully.",
+    });
+  };
+
+  // Real-time updates for market data
   useEffect(() => {
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      setPortfolioValue(prev => prev + (Math.random() - 0.5) * 100);
-      setDailyChange(prev => prev + (Math.random() - 0.5) * 50);
-    }, 3000);
+    const updateMarketData = async () => {
+      try {
+        const response = await fetch('https://duqviyslekqjldccbflu.supabase.co/functions/v1/market-data-updater', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          console.log('Market data updated');
+        }
+      } catch (error) {
+        console.error('Error updating market data:', error);
+      }
+    };
+
+    // Update every 30 seconds
+    const interval = setInterval(updateMarketData, 30000);
+    
+    // Initial update
+    updateMarketData();
 
     return () => clearInterval(interval);
   }, []);
@@ -45,14 +74,25 @@ export const TradingDashboard = () => {
         <div className="flex items-center space-x-4">
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Portfolio Value</p>
-            <p className="text-2xl font-bold">${portfolioValue.toLocaleString()}</p>
+            <p className="text-2xl font-bold">
+              ${portfolio ? portfolio.total_value.toLocaleString() : '0'}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Daily P&L</p>
-            <p className={`text-xl font-semibold ${dailyChange >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {dailyChange >= 0 ? '+' : ''}${dailyChange.toFixed(0)}
+            <p className={`text-xl font-semibold ${(portfolio?.daily_change || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+              {(portfolio?.daily_change || 0) >= 0 ? '+' : ''}${(portfolio?.daily_change || 0).toFixed(0)}
             </p>
           </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleSignOut}
+            className="flex items-center space-x-2"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Sign Out</span>
+          </Button>
         </div>
       </div>
 
