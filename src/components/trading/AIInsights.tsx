@@ -3,72 +3,77 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Brain, TrendingUp, AlertTriangle, Target } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AIInsight {
-  type: "bullish" | "bearish" | "neutral";
+  type: string;
+  message: string;
   confidence: number;
-  title: string;
-  description: string;
-  timeframe: string;
+  timestamp: string;
 }
 
-const insights: AIInsight[] = [
-  {
-    type: "bullish",
-    confidence: 85,
-    title: "Strong Momentum Pattern",
-    description: "Technical indicators suggest continued upward momentum with RSI showing healthy levels.",
-    timeframe: "1-3 days"
-  },
-  {
-    type: "bearish",
-    confidence: 72,
-    title: "Resistance Level Approaching",
-    description: "Price approaching key resistance at $185. High probability of short-term pullback.",
-    timeframe: "24 hours"
-  },
-  {
-    type: "bullish",
-    confidence: 91,
-    title: "Volume Confirmation",
-    description: "Increasing volume confirms bullish sentiment. Institutional buying detected.",
-    timeframe: "1 week"
-  }
-];
-
 export const AIInsights = () => {
+  const [insights, setInsights] = useState<AIInsight[]>([]);
   const [marketSentiment, setMarketSentiment] = useState(78);
   const [aiConfidence, setAiConfidence] = useState(83);
+  const [loading, setLoading] = useState(false);
+
+  const fetchAIInsights = async (symbol: string = "AAPL") => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-trading-insights', {
+        body: { symbol, timeframe: '1D' }
+      });
+
+      if (error) throw error;
+      
+      if (data?.insights) {
+        setInsights(data.insights);
+        const avgConfidence = data.insights.reduce((acc: number, insight: AIInsight) => acc + insight.confidence, 0) / data.insights.length;
+        setAiConfidence(Math.round(avgConfidence * 100));
+      }
+    } catch (error) {
+      console.error('Error fetching AI insights:', error);
+      // Fallback to default insights
+      setInsights([
+        {
+          type: "Technical Analysis",
+          message: "Market analysis temporarily unavailable. Using cached data.",
+          confidence: 0.5,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
+    fetchAIInsights();
+    
     const interval = setInterval(() => {
       setMarketSentiment(prev => Math.max(0, Math.min(100, prev + (Math.random() - 0.5) * 5)));
-      setAiConfidence(prev => Math.max(0, Math.min(100, prev + (Math.random() - 0.5) * 3)));
-    }, 5000);
+      fetchAIInsights();
+    }, 30000); // Update every 30 seconds
 
     return () => clearInterval(interval);
   }, []);
 
   const getInsightIcon = (type: string) => {
-    switch (type) {
-      case "bullish":
-        return <TrendingUp className="h-4 w-4 text-profit" />;
-      case "bearish":
-        return <AlertTriangle className="h-4 w-4 text-loss" />;
-      default:
-        return <Target className="h-4 w-4 text-warning" />;
+    if (type.toLowerCase().includes('technical')) {
+      return <Target className="h-4 w-4 text-primary" />;
+    } else if (type.toLowerCase().includes('sentiment')) {
+      return <TrendingUp className="h-4 w-4 text-warning" />;
+    } else if (type.toLowerCase().includes('risk')) {
+      return <AlertTriangle className="h-4 w-4 text-loss" />;
     }
+    return <Brain className="h-4 w-4 text-muted-foreground" />;
   };
 
-  const getInsightBadgeVariant = (type: string) => {
-    switch (type) {
-      case "bullish":
-        return "default";
-      case "bearish":
-        return "destructive";
-      default:
-        return "secondary";
-    }
+  const getInsightBadgeVariant = (confidence: number) => {
+    if (confidence > 0.8) return "default";
+    if (confidence > 0.6) return "secondary";
+    return "outline";
   };
 
   return (
@@ -103,27 +108,36 @@ export const AIInsights = () => {
 
         {/* Recent Insights */}
         <div className="space-y-4">
-          <h4 className="font-semibold text-sm">Recent Analysis</h4>
-          {insights.map((insight, index) => (
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-sm">AI Analysis</h4>
+            {loading && <div className="text-xs text-muted-foreground">Updating...</div>}
+          </div>
+          {insights.length > 0 ? insights.map((insight, index) => (
             <div key={index} className="space-y-2 p-3 bg-muted/30 rounded-lg border border-border/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   {getInsightIcon(insight.type)}
-                  <span className="font-medium text-sm">{insight.title}</span>
+                  <span className="font-medium text-sm">{insight.type}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Badge 
-                    variant={getInsightBadgeVariant(insight.type)}
+                    variant={getInsightBadgeVariant(insight.confidence)}
                     className="text-xs"
                   >
-                    {insight.confidence}%
+                    {Math.round(insight.confidence * 100)}%
                   </Badge>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">{insight.description}</p>
-              <p className="text-xs text-primary font-medium">{insight.timeframe}</p>
+              <p className="text-xs text-muted-foreground">{insight.message}</p>
+              <p className="text-xs text-primary font-medium">
+                {new Date(insight.timestamp).toLocaleTimeString()}
+              </p>
             </div>
-          ))}
+          )) : (
+            <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
+              <p className="text-xs text-muted-foreground">Loading AI insights...</p>
+            </div>
+          )}
         </div>
 
         {/* AI Recommendation */}

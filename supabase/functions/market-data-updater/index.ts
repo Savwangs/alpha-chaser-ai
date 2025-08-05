@@ -103,8 +103,8 @@ serve(async (req) => {
             const updatedSymbol = updates.find(u => u.symbol === holding.symbol);
             if (updatedSymbol) {
               const marketValue = holding.quantity * updatedSymbol.price;
-              const unrealizedPnl = marketValue - (holding.quantity * holding.avg_cost);
-              const unrealizedPnlPercent = (unrealizedPnl / (holding.quantity * holding.avg_cost)) * 100;
+              const unrealizedPnl = marketValue - (holding.quantity * holding.average_cost);
+              const unrealizedPnlPercent = (unrealizedPnl / (holding.quantity * holding.average_cost)) * 100;
               
               // Update holding
               await supabase

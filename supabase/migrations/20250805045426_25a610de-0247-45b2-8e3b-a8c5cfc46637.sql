@@ -1,0 +1,24 @@
+-- Insert initial market data for popular stocks
+INSERT INTO market_data (symbol, price, change, change_percent, volume, market_cap) VALUES
+('AAPL', 185.75, 2.45, 1.34, 45230000, 2890000000000),
+('GOOGL', 138.25, -1.85, -1.32, 28940000, 1710000000000),
+('MSFT', 378.90, 4.20, 1.12, 32150000, 2820000000000),
+('AMZN', 145.80, -0.95, -0.65, 38760000, 1510000000000),
+('TSLA', 248.75, 8.35, 3.47, 89230000, 790000000000),
+('NVDA', 875.40, 15.60, 1.81, 42180000, 2160000000000),
+('META', 485.30, -3.25, -0.66, 19850000, 1230000000000),
+('NFLX', 638.90, 12.40, 1.98, 15630000, 284000000000),
+('AMD', 142.85, 2.75, 1.96, 41280000, 231000000000),
+('BABA', 82.45, -1.35, -1.61, 22140000, 198000000000),
+('CRM', 265.80, 5.90, 2.27, 7450000, 265000000000),
+('ORCL', 178.95, 1.25, 0.70, 18920000, 507000000000),
+('ADBE', 572.60, -2.80, -0.49, 8360000, 258000000000),
+('INTC', 24.85, 0.35, 1.43, 78420000, 106000000000),
+('IBM', 195.40, 1.80, 0.93, 5280000, 179000000000)
+ON CONFLICT (symbol) DO UPDATE SET
+  price = EXCLUDED.price,
+  change = EXCLUDED.change,
+  change_percent = EXCLUDED.change_percent,
+  volume = EXCLUDED.volume,
+  market_cap = EXCLUDED.market_cap,
+  updated_at = now();

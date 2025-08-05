@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { usePortfolio } from "@/hooks/usePortfolio";
+import { AddStockModal } from "./AddStockModal";
 
 interface Position {
   symbol: string;
@@ -68,9 +70,11 @@ const positions: Position[] = [
 ];
 
 export const PortfolioOverview = () => {
-  const totalValue = positions.reduce((sum, pos) => sum + pos.value, 0);
-  const totalGainLoss = positions.reduce((sum, pos) => sum + (pos.change * pos.shares), 0);
-  const totalGainLossPercent = (totalGainLoss / (totalValue - totalGainLoss)) * 100;
+  const { portfolio, holdings, loading, refetch } = usePortfolio();
+  
+  const totalValue = portfolio?.total_value || 0;
+  const totalGainLoss = portfolio?.daily_change || 0;
+  const totalGainLossPercent = portfolio?.daily_change_percent || 0;
 
   return (
     <div className="space-y-6">
@@ -99,7 +103,7 @@ export const PortfolioOverview = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Cash Available</p>
-              <p className="text-2xl font-bold">$12,450</p>
+              <p className="text-2xl font-bold">${(portfolio?.cash_balance || 0).toLocaleString()}</p>
             </div>
           </div>
         </CardContent>
@@ -108,50 +112,67 @@ export const PortfolioOverview = () => {
       {/* Holdings */}
       <Card>
         <CardHeader>
-          <CardTitle>Holdings</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Holdings</CardTitle>
+            <AddStockModal onStockAdded={refetch} />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {positions.map((position) => {
-              const allocation = (position.value / totalValue) * 100;
-              return (
-                <div key={position.symbol} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div>
-                        <p className="font-semibold">{position.symbol}</p>
-                        <p className="text-sm text-muted-foreground">{position.name}</p>
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Loading portfolio...</p>
+            </div>
+          ) : holdings.length > 0 ? (
+            <div className="space-y-4">
+              {holdings.map((holding) => {
+                const allocation = totalValue > 0 ? ((holding.market_value || 0) / totalValue) * 100 : 0;
+                const changePercent = holding.unrealized_pnl_percent || 0;
+                const changeValue = holding.unrealized_pnl || 0;
+                
+                return (
+                  <div key={holding.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div>
+                          <p className="font-semibold">{holding.symbol}</p>
+                          <p className="text-sm text-muted-foreground">{holding.company_name || "Unknown Company"}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {holding.quantity} shares
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        {position.shares} shares
-                      </Badge>
+                      <div className="text-right">
+                        <p className="font-semibold">${(holding.market_value || 0).toLocaleString()}</p>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-sm ${changeValue >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            {changeValue >= 0 ? '+' : ''}${changeValue.toFixed(2)}
+                          </span>
+                          <span className={`text-sm ${changePercent >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            ({changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%)
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">${position.value.toLocaleString()}</p>
-                      <div className="flex items-center space-x-2">
-                        <span className={`text-sm ${position.change >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {position.change >= 0 ? '+' : ''}${position.change.toFixed(2)}
-                        </span>
-                        <span className={`text-sm ${position.changePercent >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          ({position.changePercent >= 0 ? '+' : ''}{position.changePercent.toFixed(2)}%)
-                        </span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Allocation</span>
+                        <span>{allocation.toFixed(1)}%</span>
                       </div>
+                      <Progress 
+                        value={allocation} 
+                        className="h-2"
+                      />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Allocation</span>
-                      <span>{allocation.toFixed(1)}%</span>
-                    </div>
-                    <Progress 
-                      value={allocation} 
-                      className="h-2"
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 space-y-4">
+              <p className="text-muted-foreground">No holdings in your portfolio yet.</p>
+              <AddStockModal onStockAdded={refetch} />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

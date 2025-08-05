@@ -3,7 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TrendingUp, TrendingDown, Clock, Target, DollarSign } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, Target, DollarSign, Zap } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { usePortfolio } from "@/hooks/usePortfolio";
 
 interface Signal {
   id: string;
@@ -80,20 +84,70 @@ const mockSignals: Signal[] = [
 ];
 
 export const TradingSignals = () => {
-  const [signals, setSignals] = useState(mockSignals);
+  const [signals, setSignals] = useState<any[]>([]);
   const [selectedTab, setSelectedTab] = useState("active");
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { signals: portfolioSignals, refetch } = usePortfolio();
+
+  const generateSignal = async (symbol: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to generate trading signals.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-trading-signals', {
+        body: { symbol, userId: user.id }
+      });
+
+      if (error) throw error;
+
+      if (data?.signal) {
+        toast({
+          title: "Signal Generated",
+          description: `New ${data.signal.signal_type} signal created for ${symbol}`,
+        });
+        refetch();
+      }
+    } catch (error) {
+      console.error('Error generating signal:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate trading signal. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate real-time signal updates
-    const interval = setInterval(() => {
-      setSignals(prev => prev.map(signal => ({
-        ...signal,
-        confidence: Math.max(50, Math.min(95, signal.confidence + (Math.random() - 0.5) * 5))
-      })));
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
+    if (portfolioSignals) {
+      // Transform portfolio signals to match our interface
+      const transformedSignals = portfolioSignals.map(signal => ({
+        id: signal.id,
+        symbol: signal.symbol,
+        type: signal.signal_type as "BUY" | "SELL",
+        strength: signal.confidence_score > 0.8 ? "STRONG" : signal.confidence_score > 0.6 ? "MODERATE" : "WEAK",
+        price: 0, // We'll need to get current price from market data
+        targetPrice: signal.price_target || 0,
+        stopLoss: signal.stop_loss || 0,
+        confidence: Math.round(signal.confidence_score * 100),
+        timeframe: "1-3 days",
+        strategy: signal.ai_reasoning || "AI Generated",
+        timestamp: new Date(signal.created_at),
+        status: new Date(signal.expires_at || 0) > new Date() ? "ACTIVE" : "EXPIRED"
+      }));
+      setSignals(transformedSignals);
+    }
+  }, [portfolioSignals]);
 
   const getSignalsByStatus = (status: string) => {
     return signals.filter(signal => {
@@ -193,7 +247,20 @@ export const TradingSignals = () => {
       {/* Trading Signals */}
       <Card>
         <CardHeader>
-          <CardTitle>Trading Signals</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Trading Signals</CardTitle>
+            <div className="flex space-x-2">
+              <Button 
+                size="sm" 
+                onClick={() => generateSignal("AAPL")}
+                disabled={loading}
+                className="flex items-center space-x-2"
+              >
+                <Zap className="h-4 w-4" />
+                <span>{loading ? "Generating..." : "Generate Signal"}</span>
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>

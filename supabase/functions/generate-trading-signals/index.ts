@@ -138,11 +138,10 @@ Format as: SIGNAL_TYPE|CONFIDENCE|PRICE_TARGET|STOP_LOSS|REASONING`;
         user_id: userId,
         symbol,
         signal_type: signalType,
-        confidence,
+        confidence_score: confidence,
         price_target: priceTarget,
         stop_loss: stopLoss,
-        reasoning,
-        source: openAIApiKey ? 'AI_ANALYSIS' : 'ALGORITHMIC',
+        ai_reasoning: reasoning,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
       })
       .select()
