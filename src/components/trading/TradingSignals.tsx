@@ -91,6 +91,15 @@ export const TradingSignals = () => {
   const { toast } = useToast();
   const { signals: portfolioSignals, refetch } = usePortfolio();
 
+  // Input validation function
+  const validateSymbol = (symbol: string): string => {
+    const cleanSymbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,10}$/.test(cleanSymbol)) {
+      throw new Error('Stock symbol must be 1-10 alphanumeric characters');
+    }
+    return cleanSymbol;
+  };
+
   const generateSignal = async (symbol: string) => {
     if (!user) {
       toast({
@@ -101,26 +110,35 @@ export const TradingSignals = () => {
       return;
     }
 
-    setLoading(true);
     try {
+      // Validate symbol
+      const validatedSymbol = validateSymbol(symbol);
+      
+      setLoading(true);
+      
       const { data, error } = await supabase.functions.invoke('generate-trading-signals', {
-        body: { symbol, userId: user.id }
+        body: { symbol: validatedSymbol, userId: user.id }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to generate signal');
+      }
 
       if (data?.signal) {
         toast({
           title: "Signal Generated",
-          description: `New ${data.signal.signal_type} signal created for ${symbol}`,
+          description: `New ${data.signal.signal_type} signal created for ${validatedSymbol}`,
         });
         refetch();
+      } else {
+        throw new Error('No signal data received');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating signal:', error);
       toast({
         title: "Error",
-        description: "Failed to generate trading signal. Please try again.",
+        description: error.message || "Failed to generate trading signal. Please try again.",
         variant: "destructive"
       });
     } finally {

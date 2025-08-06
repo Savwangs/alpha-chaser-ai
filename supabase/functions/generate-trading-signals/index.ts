@@ -5,6 +5,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
 };
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -13,28 +16,112 @@ const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Input validation functions
+function validateStockSymbol(symbol: string): string {
+  if (!symbol || typeof symbol !== 'string') {
+    throw new Error('Invalid symbol: Symbol is required and must be a string');
+  }
+  
+  const cleanSymbol = symbol.trim().toUpperCase();
+  
+  if (!/^[A-Z0-9]{1,10}$/.test(cleanSymbol)) {
+    throw new Error('Invalid symbol: Must be 1-10 alphanumeric characters');
+  }
+  
+  return cleanSymbol;
+}
+
+function validateUserId(userId: string): string {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Invalid user ID: User ID is required');
+  }
+  
+  // Basic UUID format validation
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(userId)) {
+    throw new Error('Invalid user ID format');
+  }
+  
+  return userId;
+}
+
+// Error sanitization function
+function sanitizeError(error: any): string {
+  // Don't expose internal details in production
+  if (error.message) {
+    // Remove any potential sensitive information
+    return error.message.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[email]')
+                        .replace(/\b\d{4,}\b/g, '[number]');
+  }
+  return 'An unexpected error occurred';
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const { symbol, userId } = await req.json();
+  // Check request method
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { 
+        status: 405, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
 
-    if (!userId) {
-      throw new Error('User ID is required');
+  try {
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (e) {
+      throw new Error('Invalid JSON in request body');
+    }
+
+    const { symbol, userId } = requestBody;
+
+    // Validate inputs
+    const validatedUserId = validateUserId(userId);
+    const validatedSymbol = validateStockSymbol(symbol);
+
+    // Check rate limiting
+    const { data: rateLimitCheck } = await supabase.rpc('check_rate_limit', {
+      p_user_id: validatedUserId,
+      p_function_name: 'generate-trading-signals',
+      p_max_requests: 5, // 5 requests per hour
+      p_window_minutes: 60
+    });
+
+    if (!rateLimitCheck) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: 3600 // 1 hour in seconds
+        }),
+        {
+          status: 429,
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': '3600'
+          },
+        }
+      );
     }
 
     // Get market data for the symbol
-    const { data: marketData } = await supabase
+    const { data: marketData, error: marketDataError } = await supabase
       .from('market_data')
       .select('*')
-      .eq('symbol', symbol)
+      .eq('symbol', validatedSymbol)
       .single();
 
-    if (!marketData) {
-      throw new Error(`No market data found for ${symbol}`);
+    if (marketDataError || !marketData) {
+      console.error('Market data fetch error:', marketDataError);
+      throw new Error(`Market data not available for ${validatedSymbol}`);
     }
 
     let signalType: 'BUY' | 'SELL' | 'HOLD';
@@ -131,12 +218,18 @@ Format as: SIGNAL_TYPE|CONFIDENCE|PRICE_TARGET|STOP_LOSS|REASONING`;
       }
     }
 
+    // Validate generated values
+    confidence = Math.max(0, Math.min(1, confidence)); // Clamp between 0 and 1
+    priceTarget = Math.max(0, priceTarget); // Ensure positive
+    stopLoss = Math.max(0, stopLoss); // Ensure positive
+    reasoning = reasoning.substring(0, 1000); // Limit length
+
     // Save the signal to database
-    const { data: signal, error } = await supabase
+    const { data: signal, error: signalError } = await supabase
       .from('trading_signals')
       .insert({
-        user_id: userId,
-        symbol,
+        user_id: validatedUserId,
+        symbol: validatedSymbol,
         signal_type: signalType,
         confidence_score: confidence,
         price_target: priceTarget,
@@ -147,11 +240,12 @@ Format as: SIGNAL_TYPE|CONFIDENCE|PRICE_TARGET|STOP_LOSS|REASONING`;
       .select()
       .single();
 
-    if (error) {
-      throw error;
+    if (signalError) {
+      console.error('Database insert error:', signalError);
+      throw new Error('Failed to save trading signal');
     }
 
-    console.log(`Generated ${signalType} signal for ${symbol} with ${(confidence * 100).toFixed(0)}% confidence`);
+    console.log(`Generated ${signalType} signal for ${validatedSymbol} with ${(confidence * 100).toFixed(0)}% confidence`);
 
     return new Response(JSON.stringify({ signal }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -159,10 +253,22 @@ Format as: SIGNAL_TYPE|CONFIDENCE|PRICE_TARGET|STOP_LOSS|REASONING`;
 
   } catch (error) {
     console.error('Error in generate-trading-signals function:', error);
+    
+    // Determine appropriate status code based on error type
+    let statusCode = 500;
+    if (error.message.includes('Invalid') || error.message.includes('required')) {
+      statusCode = 400;
+    } else if (error.message.includes('not found') || error.message.includes('not available')) {
+      statusCode = 404;
+    }
+
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: sanitizeError(error),
+        timestamp: new Date().toISOString()
+      }),
       {
-        status: 500,
+        status: statusCode,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
