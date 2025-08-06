@@ -157,6 +157,33 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          created_at: string | null
+          function_name: string
+          id: string
+          request_count: number | null
+          user_id: string
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          function_name: string
+          id?: string
+          request_count?: number | null
+          user_id: string
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          function_name?: string
+          id?: string
+          request_count?: number | null
+          user_id?: string
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       trading_signals: {
         Row: {
           ai_reasoning: string | null
@@ -225,7 +252,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_rate_limit: {
+        Args: {
+          p_user_id: string
+          p_function_name: string
+          p_max_requests?: number
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
+      sanitize_stock_symbol: {
+        Args: { input_symbol: string }
+        Returns: string
+      }
+      validate_positive_number: {
+        Args: { input_value: number; field_name: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
